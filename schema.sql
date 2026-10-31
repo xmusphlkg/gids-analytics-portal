@@ -1,6 +1,3 @@
--- Cloudflare D1 Database Schema (schema.sql)
--- 解决 KV 并发覆盖与每日 1000 次写入限制问题 (D1 免费版支持每日 100,000 次原子写入)
-
 CREATE TABLE IF NOT EXISTS global_metrics (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   total_pv INTEGER NOT NULL DEFAULT 0,
@@ -16,8 +13,8 @@ CREATE TABLE IF NOT EXISTS unique_visitors (
   last_seen INTEGER NOT NULL,
   country TEXT NOT NULL,
   city TEXT NOT NULL,
-  lat REAL NOT NULL,
-  lng REAL NOT NULL,
+  lat REAL,
+  lng REAL,
   visits INTEGER NOT NULL DEFAULT 1
 );
 
@@ -26,8 +23,8 @@ CREATE TABLE IF NOT EXISTS country_stats (
   pv INTEGER NOT NULL DEFAULT 0,
   uv INTEGER NOT NULL DEFAULT 0,
   last_city TEXT NOT NULL,
-  lat REAL NOT NULL,
-  lng REAL NOT NULL
+  lat REAL,
+  lng REAL
 );
 
 CREATE TABLE IF NOT EXISTS city_nodes (
@@ -55,8 +52,8 @@ CREATE TABLE IF NOT EXISTS access_logs (
   region TEXT,
   colo TEXT NOT NULL,
   asn TEXT,
-  lat REAL NOT NULL,
-  lng REAL NOT NULL,
+  lat REAL,
+  lng REAL,
   path TEXT NOT NULL,
   title TEXT NOT NULL,
   referrer TEXT NOT NULL,
