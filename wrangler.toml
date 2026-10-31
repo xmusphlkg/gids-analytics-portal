@@ -11,7 +11,7 @@ compatibility_date = "2024-10-01"
 # [[d1_databases]]
 # binding = "GID_DB"
 # database_name = "gid-telemetry-db"
-# database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+# database_id = "73ee185f-9a31-4bdc-b4ef-f6145263cd21"
 
 # ============================================================================
 # [兼容方案 B：绑定 Cloudflare KV 数据库] (已加入写入节流防爆额度优化)
