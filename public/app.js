@@ -40,9 +40,10 @@ let view = (location.hash || "#overview").slice(1);
 if (!VIEWS.includes(view)) view = "overview";
 let names = regionNames();
 let map;
-let markers;
+let mapReady = false;
 let fitted = false;
 let latest = null;
+let popup;
 
 function t(key) { return COPY[lang][key]; }
 function regionNames() { return new Intl.DisplayNames([lang === "zh" ? "zh-CN" : "en"], { type: "region" }); }
@@ -82,49 +83,74 @@ function setView(next) {
   applyCopy();
   if (latest) render(latest);
   if (map && (view === "overview" || view === "realtime" || view === "locations")) {
-    setTimeout(() => map.invalidateSize(), 40);
+    setTimeout(() => map.resize(), 40);
   }
 }
 
+function readerFeatures(nodes) {
+  return {
+    type: "FeatureCollection",
+    features: (nodes || []).filter((node) => Number.isFinite(node.lat) && Number.isFinite(node.lng)).map((node) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [node.lng, node.lat] },
+      properties: { country: node.country, city: node.city || "", pv: node.pv || 0 },
+    })),
+  };
+}
+
 function initMap() {
-  if (!window.L) {
+  if (!window.maplibregl) {
     document.getElementById("map-fallback").hidden = false;
     return;
   }
-  map = L.map("map", { worldCopyJump: true, minZoom: 2, zoomControl: true }).setView([20, 0], 2);
-  const tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    subdomains: "abcd",
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap &copy; CARTO",
-  }).addTo(map);
-  markers = L.layerGroup().addTo(map);
-  let errors = 0;
-  tiles.on("tileerror", () => {
-    errors += 1;
-    if (errors > 4) document.getElementById("map-fallback").hidden = false;
+  map = new maplibregl.Map({
+    container: "map",
+    style: "https://tiles.openfreemap.org/styles/positron",
+    center: [10, 20],
+    zoom: 1.4,
+    attributionControl: true,
+  });
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+  map.on("error", () => { document.getElementById("map-fallback").hidden = false; });
+  map.on("load", () => {
+    map.addSource("readers", { type: "geojson", data: readerFeatures([]) });
+    map.addLayer({
+      id: "readers",
+      type: "circle",
+      source: "readers",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["get", "pv"], 1, 7, 40, 18],
+        "circle-color": "#0f766e",
+        "circle-opacity": 0.9,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#ffffff",
+      },
+    });
+    map.on("click", "readers", (event) => {
+      const feature = event.features && event.features[0];
+      if (!feature) return;
+      const props = feature.properties || {};
+      if (popup) popup.remove();
+      popup = new maplibregl.Popup({ closeButton: false, offset: 12 })
+        .setLngLat(feature.geometry.coordinates)
+        .setHTML(`<strong>${esc(countryName(props.country))}</strong><br>${esc(props.city)}<br>${num(props.pv)} ${esc(t("views"))}`)
+        .addTo(map);
+    });
+    map.on("mouseenter", "readers", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "readers", () => { map.getCanvas().style.cursor = ""; });
+    mapReady = true;
+    if (latest) renderMap(latest);
   });
 }
 
 function renderMap(data) {
-  if (!map || !markers) return;
-  markers.clearLayers();
-  const points = [];
-  for (const node of data.cityNodes || []) {
-    if (!Number.isFinite(node.lat) || !Number.isFinite(node.lng)) continue;
-    points.push([node.lat, node.lng]);
-    const radius = Math.max(6, Math.min(18, 4 + Math.sqrt(node.pv || 1) * 2));
-    L.circleMarker([node.lat, node.lng], {
-      radius, color: "#0f766e", weight: 1, fillColor: "#0f766e", fillOpacity: 0.78,
-    }).bindPopup(`<strong>${esc(countryName(node.country))}</strong><br>${esc(node.city || "")}<br>${num(node.pv)} ${esc(t("views"))}`).addTo(markers);
-  }
-  const viewer = data.viewer || {};
-  if (Number.isFinite(viewer.latitude) && Number.isFinite(viewer.longitude)) {
-    L.circleMarker([viewer.latitude, viewer.longitude], {
-      radius: 7, color: "#9a3412", weight: 2, fillColor: "#fdba74", fillOpacity: 0.9,
-    }).bindPopup(esc(t("you"))).addTo(markers);
-  }
-  if (!fitted && points.length) {
-    map.fitBounds(points.length === 1 ? L.latLngBounds(points[0], points[0]).pad(0.8) : points, { padding: [36, 36], maxZoom: 4 });
+  if (!mapReady) return;
+  const collection = readerFeatures(data.cityNodes);
+  map.getSource("readers").setData(collection);
+  if (!fitted && collection.features.length) {
+    const bounds = new maplibregl.LngLatBounds();
+    collection.features.forEach((feature) => bounds.extend(feature.geometry.coordinates));
+    map.fitBounds(bounds, { padding: 72, maxZoom: 4, duration: 0 });
     fitted = true;
   }
 }
