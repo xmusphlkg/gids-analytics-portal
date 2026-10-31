@@ -34,6 +34,18 @@ export async function onRequestGet(context) {
   try {
     await ensureSchema(env.GID_DB);
     const db = env.GID_DB;
+    if (new URL(request.url).searchParams.get("view") === "countries") {
+      const countrySeriesRes = await db.prepare(`SELECT day, country, pv, uv FROM daily_country ORDER BY day ASC`).all();
+      return json({
+        ok: true,
+        countrySeries: (countrySeriesRes.results || []).map((row) => ({
+          day: row.day,
+          country: row.country,
+          pv: row.pv,
+          uv: row.uv,
+        })),
+      }, headers);
+    }
     const since = Date.now() - 5 * 60 * 1000;
     const metrics = await db.prepare(`SELECT total_pv, total_uv, filtered_bots FROM global_metrics WHERE id = 1`).first();
     const online = await db.prepare(`SELECT COUNT(*) AS cnt FROM unique_visitors WHERE last_seen >= ?`).bind(since).first();

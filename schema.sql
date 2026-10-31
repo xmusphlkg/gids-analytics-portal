@@ -67,5 +67,13 @@ CREATE TABLE IF NOT EXISTS daily_stats (
   uv INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS daily_country (
+  day TEXT NOT NULL,
+  country TEXT NOT NULL,
+  pv INTEGER NOT NULL DEFAULT 0,
+  uv INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, country)
+);
+
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON access_logs(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_visitors_last_seen ON unique_visitors(last_seen DESC);

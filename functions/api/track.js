@@ -68,6 +68,7 @@ async function record(context, payload, isPixel) {
       ),
       db.prepare(`INSERT INTO page_stats (path, title, pv) VALUES (?, ?, 1) ON CONFLICT(path) DO UPDATE SET pv = page_stats.pv + 1, title = excluded.title`).bind(path, title),
       db.prepare(`INSERT INTO daily_stats (day, pv, uv) VALUES (?, 1, ?) ON CONFLICT(day) DO UPDATE SET pv = daily_stats.pv + 1, uv = daily_stats.uv + ?`).bind(day, isNew, isNew),
+      db.prepare(`INSERT INTO daily_country (day, country, pv, uv) VALUES (?, ?, 1, ?) ON CONFLICT(day, country) DO UPDATE SET pv = daily_country.pv + 1, uv = daily_country.uv + ?`).bind(day, geo.country || "XX", isNew, isNew),
       db.prepare(`INSERT INTO access_logs (ts, visitor_hash, country, city, region, colo, asn, lat, lng, path, title, referrer, is_new_uv, is_bot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`).bind(
         now, visitorHash, geo.country, geo.city, geo.region, geo.colo, geo.asn, geo.lat, geo.lng, path, title, referrer, isNew
       ),
