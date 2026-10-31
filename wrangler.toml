@@ -1,0 +1,27 @@
+name = "gid-analytics-portal"
+pages_build_output_dir = "public"
+compatibility_date = "2024-10-01"
+
+# ============================================================================
+# [推荐方案 A：绑定 Cloudflare D1 SQL 数据库] (解决并发数据覆盖，每天免费 100,000 次写入)
+# 1. 在 Cloudflare 控制台 -> Storage & Databases -> D1 创建数据库: gid-telemetry-db
+# 2. 在 Pages 项目 -> Settings -> Bindings 中添加 D1 绑定，变量名填: GID_DB
+# （后端代码会自动建表，无需手动执行 SQL！）
+# ============================================================================
+# [[d1_databases]]
+# binding = "GID_DB"
+# database_name = "gid-telemetry-db"
+# database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# ============================================================================
+# [兼容方案 B：绑定 Cloudflare KV 数据库] (已加入写入节流防爆额度优化)
+# 如果你只绑定了 GID_STATS_KV，系统会自动使用节流优化后的 KV 引擎运行
+# ============================================================================
+# [[kv_namespaces]]
+# binding = "GID_STATS_KV"
+# id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+ALLOWED_ORIGIN = "https://globalinfectiousdisease.com"
+SITE_NAME = "Global Infectious Disease Surveillance & Academic Portal"
+SITE_DOMAIN = "globalinfectiousdisease.com"

@@ -1,0 +1,15 @@
+{
+  "name": "gid-analytics-portal-v2",
+  "version": "2.0.0",
+  "description": "Global Infectious Disease Portal - High-Concurrency Real-Time Edge Telemetry (D1 + KV Dual Engine)",
+  "private": true,
+  "scripts": {
+    "dev": "npx wrangler pages dev public --d1 GID_DB --kv GID_STATS_KV",
+    "db:init:local": "npx wrangler d1 execute gid-telemetry-db --local --file=./schema.sql",
+    "db:init:remote": "npx wrangler d1 execute gid-telemetry-db --remote --file=./schema.sql",
+    "deploy": "npx wrangler pages deploy public --project-name=gid-analytics-portal"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}
