@@ -9,48 +9,65 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.5/500.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.5/600.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/app.css?v=6">
 </head>
 <body>
-  <canvas id="bg" aria-hidden="true"></canvas>
-  <div class="page">
-    <header class="top">
-      <a class="brand" href="https://globalinfectiousdisease.com/">
-        <img src="https://globalinfectiousdisease.com/logo-mark-128.png" alt="" width="36" height="36">
-        <span><strong>GIDS</strong><small>Analytics</small></span>
-      </a>
-      <div class="live"><i></i><span data-i18n="live"></span></div>
-      <div class="tools">
-        <span id="updated"></span>
-        <button type="button" id="lang"></button>
+  <h1 class="sr">GIDS Analytics</h1>
+  <div id="map"></div>
+  <p id="map-fallback" class="map-fallback" hidden data-i18n="mapFail"></p>
+  <header class="hud-top">
+    <a class="brand" href="https://globalinfectiousdisease.com/">
+      <img src="https://globalinfectiousdisease.com/logo-mark-128.png" alt="" width="32" height="32">
+      <span><strong>GIDS</strong><small>Analytics</small></span>
+    </a>
+    <div class="live"><i></i><span data-i18n="live"></span></div>
+    <span id="wait"></span>
+    <div class="tools">
+      <span id="updated"></span>
+      <button type="button" id="lang"></button>
+    </div>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <nav class="hud-left" id="ranges"></nav>
+  <aside class="hud-right">
+    <article class="panel chart">
+      <canvas id="spark-uv" aria-hidden="true"></canvas>
+      <div class="panel-copy">
+        <span data-i18n="users"></span>
+        <div class="figure-wrap">
+          <strong class="live-num" id="metric-uv">—</strong>
+          <sup id="delta-uv" class="delta" hidden></sup>
+        </div>
+        <em id="users-note"></em>
       </div>
-    </header>
-    <div id="banner" class="banner" hidden></div>
-    <section class="metrics" id="metrics"></section>
-    <p class="note" id="note"></p>
-    <section class="card map-card">
-      <div class="card-head"><h2 data-i18n="map"></h2><span data-i18n="mapHint"></span></div>
-      <div class="map-frame">
-        <div id="map"></div>
-        <p id="map-fallback" class="map-fallback" hidden data-i18n="mapFail"></p>
-      </div>
-    </section>
-    <section class="split">
-      <div class="card">
-        <div class="card-head"><h2 data-i18n="countries"></h2></div>
+    </article>
+    <article class="panel grow">
+      <div class="panel-copy">
+        <span data-i18n="countries"></span>
+        <p class="scope" id="countries-note" hidden></p>
         <div id="countries"></div>
       </div>
-      <div class="card">
-        <div class="card-head"><h2 data-i18n="pages"></h2></div>
-        <div id="pages"></div>
+    </article>
+    <article class="panel chart">
+      <canvas id="spark-pv" aria-hidden="true"></canvas>
+      <div class="panel-copy">
+        <span data-i18n="visits"></span>
+        <div class="figure-wrap">
+          <strong class="live-num" id="metric-pv">—</strong>
+          <sup id="delta-pv" class="delta" hidden></sup>
+        </div>
+        <em id="visits-note"></em>
       </div>
-    </section>
-    <section class="card">
-      <div class="card-head"><h2 data-i18n="stream"></h2><span data-i18n="streamHint"></span></div>
-      <div id="stream"></div>
-    </section>
-  </div>
+    </article>
+    <article class="panel grow">
+      <div class="panel-copy">
+        <span data-i18n="parts"></span>
+        <p class="scope" id="parts-note" hidden></p>
+        <div id="parts"></div>
+      </div>
+    </article>
+  </aside>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=6"></script>
 </body>
 </html>

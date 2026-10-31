@@ -1,44 +1,69 @@
 const COPY = {
   zh: {
-    live: "实时", active: "活跃读者", activeHint: "过去 5 分钟",
-    users: "访问", usersHint: "含 Web Analytics 历史", views: "浏览量", viewsHint: "页面打开次数",
-    bots: "自动访问", botsHint: "已识别的脚本与爬虫",
-    map: "读者位置", mapHint: "在线地图", mapFail: "在线底图没有加载。地区列表仍然可用。",
-    countries: "国家/地区", pages: "网页", stream: "实时事件", streamHint: "信标写入后出现",
-    empty: "主站信标生效后，新的访问会显示在这里。",
-    unbound: "D1 还没有绑到这个项目。", failed: "报告暂时读不出来。",
-    note: "折线是 Cloudflare Web Analytics 的每日浏览量。数字会在新访问到达时跳动。",
-    updated: "更新于", time: "时间", place: "地区", page: "网页", source: "来源", kind: "类型",
-    user: "访问", view: "浏览量", newUser: "新访问", returning: "再次访问", bot: "自动访问",
-    unknown: "未知", direct: "直接访问",
+    live: "实时",
+    users: "累计用户数",
+    countries: "用户国家分布",
+    visits: "累计访问数",
+    parts: "累计访问部分",
+    range: "时间",
+    today: "今日",
+    d7: "7 天",
+    d30: "30 天",
+    d90: "90 天",
+    all: "全部",
+    since: "含 Web Analytics 历史",
+    window: "所选区间按日合计",
+    scope: "全部记录",
+    waiting: "新访问亮起，10 秒后熄灭",
+    mapFail: "在线底图没有加载。",
+    unbound: "D1 还没有绑到这个项目。",
+    failed: "报告暂时读不出来。",
+    updated: "更新于",
+    empty: "还没有记录。",
+    unknown: "未知",
   },
   en: {
-    live: "Live", active: "Active readers", activeHint: "Last 5 minutes",
-    users: "Visits", usersHint: "Includes Web Analytics history", views: "Views", viewsHint: "Page opens",
-    bots: "Automated", botsHint: "Scripts and crawlers",
-    map: "Reader locations", mapHint: "Live map", mapFail: "The base map did not load. The location list is still available.",
-    countries: "Countries", pages: "Pages", stream: "Live events", streamHint: "Appears as beacons arrive",
-    empty: "New visits show up here after the public site beacon is active.",
-    unbound: "D1 is not bound to this project.", failed: "The report could not be loaded.",
-    note: "The line is daily page views from Cloudflare Web Analytics. Figures tick as new visits arrive.",
-    updated: "Updated", time: "Time", place: "Location", page: "Page", source: "Source", kind: "Type",
-    user: "Visits", view: "Views", newUser: "New", returning: "Returning", bot: "Automated",
-    unknown: "Unknown", direct: "Direct",
+    live: "Live",
+    users: "Cumulative users",
+    countries: "Countries",
+    visits: "Cumulative visits",
+    parts: "Visit breakdown",
+    range: "Time",
+    today: "Today",
+    d7: "7 days",
+    d30: "30 days",
+    d90: "90 days",
+    all: "All",
+    since: "Includes Web Analytics history",
+    window: "Daily total for this range",
+    scope: "Full record",
+    waiting: "A new visit lights up, then fades after 10s",
+    mapFail: "The base map did not load.",
+    unbound: "D1 is not bound to this project.",
+    failed: "The report could not be loaded.",
+    updated: "Updated",
+    empty: "No records yet.",
+    unknown: "Unknown",
   },
 };
 
+const RANGES = [["1", "today"], ["7", "d7"], ["30", "d30"], ["90", "d90"], ["all", "all"]];
 let lang = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
 let names = regionNames();
+let range = "all";
+let latest = null;
 let map;
 let mapReady = false;
-let fitted = false;
-let latest = null;
-let popup;
 let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const shown = {};
+const seen = new Set();
+const queue = [];
+const sparks = { uv: [], pv: [] };
+let travel = 0;
+let waitTimer = 0;
 
 function t(key) { return COPY[lang][key]; }
 function regionNames() { return new Intl.DisplayNames([lang === "zh" ? "zh-CN" : "en"], { type: "region" }); }
+function locale() { return lang === "zh" ? "zh-CN" : "en"; }
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
@@ -46,112 +71,238 @@ function countryName(code) {
   if (!code || code === "XX" || code === "ZZ" || code === "T1") return t("unknown");
   try { return names.of(code) || code; } catch (e) { return code; }
 }
-function hostOf(referrer) {
-  if (!referrer || referrer === "Direct") return t("direct");
-  try { return new URL(referrer).host || referrer; } catch (e) { return referrer; }
-}
+function num(value) { return Number(value || 0).toLocaleString(locale()); }
 
 function applyCopy() {
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   names = regionNames();
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.getElementById("lang").textContent = lang === "zh" ? "EN" : "中文";
-  document.getElementById("note").textContent = t("note");
+  if (!document.querySelector(".hit")) document.getElementById("wait").textContent = t("waiting");
+  renderRanges();
+}
+
+function renderRanges() {
+  const nav = document.getElementById("ranges");
+  nav.setAttribute("aria-label", t("range"));
+  nav.innerHTML = `<p>${esc(t("range"))}</p>` + RANGES.map(([id, key]) => (
+    `<button type="button" data-range="${id}" class="${id === range ? "on" : ""}" aria-pressed="${id === range}">${esc(t(key))}</button>`
+  )).join("");
+}
+
+function sliceSeries(rows) {
+  const all = rows || [];
+  if (range === "all") return all;
+  const days = Number(range);
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  const cutoff = start.toISOString().slice(0, 10);
+  return all.filter((row) => String(row.day) >= cutoff);
 }
 
 function tween(el, next) {
   const target = Number(next || 0);
-  const from = Number(el.dataset.value || 0);
+  const from = el.dataset.value == null || el.dataset.value === "" ? target : Number(el.dataset.value);
+  const token = Number(el.dataset.token || 0) + 1;
+  el.dataset.token = String(token);
   el.dataset.value = String(target);
   if (reduced || from === target) {
-    el.textContent = target.toLocaleString(lang === "zh" ? "zh-CN" : "en");
+    el.textContent = num(target);
     return;
   }
-  el.parentElement.classList.add("tick");
   const start = performance.now();
   const step = (now) => {
-    const p = Math.min(1, (now - start) / 650);
+    if (Number(el.dataset.token) !== token) return;
+    const p = Math.min(1, (now - start) / 700);
     const eased = 1 - Math.pow(1 - p, 3);
-    el.textContent = Math.round(from + (target - from) * eased).toLocaleString(lang === "zh" ? "zh-CN" : "en");
+    el.textContent = num(Math.round(from + (target - from) * eased));
     if (p < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
 }
 
-const canvas = document.getElementById("bg");
-const ctx = canvas.getContext("2d");
-let series = [];
-let travel = 0;
-
-function resizeCanvas() {
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.floor(window.innerWidth * ratio);
-  canvas.height = Math.floor(window.innerHeight * ratio);
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+function setMetric(id, value, ready, fromPoll) {
+  const el = document.getElementById(id);
+  const delta = document.getElementById(id.replace("metric", "delta"));
+  if (!ready) {
+    el.textContent = "—";
+    el.dataset.value = "";
+    delta.hidden = true;
+    return;
+  }
+  const prev = el.dataset.value === "" || el.dataset.value == null ? null : Number(el.dataset.value);
+  const target = Number(value || 0);
+  if (fromPoll && prev != null && target > prev) {
+    delta.hidden = false;
+    delta.textContent = `+${num(target - prev)}`;
+    delta.style.animation = "none";
+    void delta.offsetWidth;
+    delta.style.animation = "";
+  }
+  tween(el, target);
 }
 
-function linePoints() {
-  const values = series.length ? series.map((row) => row.pv || 0) : [0, 0];
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const max = Math.max(...values, 1);
-  const left = 8;
-  const right = w - 8;
-  const top = 96;
-  const bottom = Math.min(360, h * 0.48);
-  return values.map((value, index) => {
-    const x = left + (values.length === 1 ? 0.5 : index / (values.length - 1)) * (right - left);
+function drawSpark(canvas, values) {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (w < 2 || h < 2) return;
+  const pw = Math.floor(w * ratio);
+  const ph = Math.floor(h * ratio);
+  if (canvas.width !== pw || canvas.height !== ph) {
+    canvas.width = pw;
+    canvas.height = ph;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const series = values.length ? values : [0, 0];
+  const max = Math.max(...series, 1);
+  const top = h * 0.5;
+  const bottom = h - 8;
+  const pts = series.map((value, index) => {
+    const x = series.length === 1 ? w / 2 : (index / (series.length - 1)) * w;
     const y = bottom - (value / max) * (bottom - top);
     return [x, y];
   });
-}
-
-function drawBackground() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  ctx.clearRect(0, 0, w, h);
-  const points = linePoints();
-  if (points.length < 2) return;
-  const gradient = ctx.createLinearGradient(0, points[0][1], 0, h * 0.78);
-  gradient.addColorStop(0, "rgba(15, 118, 110, 0.28)");
+  const gradient = ctx.createLinearGradient(0, top, 0, h);
+  gradient.addColorStop(0, "rgba(15, 118, 110, 0.34)");
   gradient.addColorStop(1, "rgba(15, 118, 110, 0)");
   ctx.beginPath();
-  points.forEach(([x, y], index) => index ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-  ctx.lineTo(points[points.length - 1][0], h * 0.78);
-  ctx.lineTo(points[0][0], h * 0.78);
+  pts.forEach(([x, y], index) => (index ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
   ctx.closePath();
   ctx.fillStyle = gradient;
   ctx.fill();
   ctx.beginPath();
-  points.forEach(([x, y], index) => index ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-  ctx.strokeStyle = "rgba(15, 118, 110, 0.9)";
-  ctx.lineWidth = 3;
+  pts.forEach(([x, y], index) => (index ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.strokeStyle = "rgba(15, 118, 110, 0.95)";
+  ctx.lineWidth = 2.4;
+  ctx.lineJoin = "round";
   ctx.stroke();
-  if (reduced) return;
-  travel = (travel + 0.0016) % 1;
-  const cursor = travel * (points.length - 1);
-  const i = Math.floor(cursor);
-  const f = cursor - i;
-  const a = points[i];
-  const b = points[Math.min(points.length - 1, i + 1)];
-  const x = a[0] + (b[0] - a[0]) * f;
-  const y = a[1] + (b[1] - a[1]) * f;
+  const cursor = (reduced ? 1 : travel) * (pts.length - 1);
+  const index = Math.floor(cursor);
+  const rest = cursor - index;
+  const a = pts[Math.min(index, pts.length - 1)];
+  const b = pts[Math.min(index + 1, pts.length - 1)];
   ctx.beginPath();
-  ctx.arc(x, y, 5, 0, Math.PI * 2);
+  ctx.arc(a[0] + (b[0] - a[0]) * rest, a[1] + (b[1] - a[1]) * rest, 4.5, 0, Math.PI * 2);
   ctx.fillStyle = "#0f766e";
   ctx.fill();
-  requestAnimationFrame(drawBackground);
 }
 
-function readerFeatures(rows) {
-  return {
-    type: "FeatureCollection",
-    features: (rows || []).filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng)).map((row) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [row.lng, row.lat] },
-      properties: { country: row.country || row.code, pv: row.pv || row.uv || 0, city: row.city || row.lastCity || "" },
-    })),
-  };
+function paintCharts() {
+  drawSpark(document.getElementById("spark-uv"), sparks.uv);
+  drawSpark(document.getElementById("spark-pv"), sparks.pv);
+  if (reduced) return;
+  travel = (travel + 0.0018) % 1;
+  requestAnimationFrame(paintCharts);
+}
+
+function bars(rows, labelOf, valueOf) {
+  if (!rows.length) return `<p class="empty">${esc(t("empty"))}</p>`;
+  const max = Math.max(...rows.map(valueOf), 1);
+  return rows.map((row) => {
+    const value = valueOf(row);
+    const width = Math.max(4, Math.round((value / max) * 100));
+    const label = labelOf(row);
+    return `<div class="row"><div class="name" title="${esc(label)}">${esc(label)}</div><b class="live-num">${num(value)}</b><div class="bar"><i style="width:${width}%"></i></div></div>`;
+  }).join("");
+}
+
+function renderLists(data) {
+  const countries = Object.entries(data.countries || {})
+    .map(([code, info]) => ({ code, uv: info.uv || 0, pv: info.pv || 0 }))
+    .sort((a, b) => b.uv - a.uv || b.pv - a.pv)
+    .slice(0, 5);
+  document.getElementById("countries").innerHTML = bars(countries, (row) => countryName(row.code), (row) => row.uv || row.pv);
+  const pages = (data.pages || []).slice(0, 5);
+  document.getElementById("parts").innerHTML = bars(pages, (row) => row.path || "/", (row) => row.pv || 0);
+  const scoped = range !== "all";
+  document.getElementById("countries-note").hidden = !scoped;
+  document.getElementById("parts-note").hidden = !scoped;
+  document.getElementById("countries-note").textContent = t("scope");
+  document.getElementById("parts-note").textContent = t("scope");
+}
+
+function placeLabel(row) {
+  const where = [countryName(row.country), row.city].filter(Boolean).join(" · ");
+  return [where || t("unknown"), row.path || ""].filter(Boolean).join(" · ");
+}
+
+function paintHit(lng, lat, remain, row) {
+  const el = document.createElement("div");
+  el.className = "hit";
+  el.innerHTML = "<i></i>";
+  el.querySelector("i").style.animationDuration = `${remain}ms`;
+  const marker = new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([lng, lat]).addTo(map);
+  document.getElementById("wait").textContent = placeLabel(row);
+  window.clearTimeout(waitTimer);
+  window.setTimeout(() => marker.remove(), remain);
+  waitTimer = window.setTimeout(() => {
+    if (!document.querySelector(".hit")) document.getElementById("wait").textContent = t("waiting");
+  }, remain + 40);
+}
+
+function spawn(lng, lat, row) {
+  if (!mapReady) {
+    queue.push({ lng, lat, row });
+    return;
+  }
+  paintHit(lng, lat, 10000, row);
+}
+
+function flushQueue() {
+  const now = Date.now();
+  queue.splice(0).forEach((item) => {
+    const age = now - Number(item.row.ts || 0);
+    if (Number.isFinite(age) && age > 12000) return;
+    paintHit(item.lng, item.lat, 10000, item.row);
+  });
+}
+
+function ingest(logs) {
+  const now = Date.now();
+  (logs || []).forEach((row) => {
+    const key = [row.ts, row.path, row.country, row.lat, row.lng].join("|");
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (row.isBot) return;
+    const lat = Number(row.lat);
+    const lng = Number(row.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const age = now - Number(row.ts || 0);
+    if (!Number.isFinite(age) || age > 12000) return;
+    spawn(lng, lat, row);
+  });
+  if (seen.size > 800) {
+    [...seen].slice(0, seen.size - 500).forEach((key) => seen.delete(key));
+  }
+}
+
+let framing = false;
+
+function frameWorld() {
+  if (!mapReady || framing) return;
+  const canvas = map.getCanvas();
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (width < 240 || height < 240) return;
+  const narrow = width < 980;
+  const pad = narrow
+    ? { top: 156, bottom: Math.min(Math.round(height * 0.52), height - 230), left: 8, right: 8 }
+    : { top: 76, bottom: 22, left: 154, right: 348 };
+  const innerW = width - pad.left - pad.right;
+  const innerH = height - pad.top - pad.bottom;
+  if (innerW < 160 || innerH < 120) return;
+  const zoom = Math.max(0, Math.log2((innerW + 80) / 512));
+  framing = true;
+  map.setMinZoom(0);
+  map.jumpTo({ center: [12, 8], zoom, padding: pad });
+  map.setMinZoom(zoom);
+  framing = false;
 }
 
 function initMap() {
@@ -162,104 +313,25 @@ function initMap() {
   map = new maplibregl.Map({
     container: "map",
     style: "https://tiles.openfreemap.org/styles/positron",
-    center: [10, 20],
-    zoom: 1.3,
-    renderWorldCopies: false,
+    center: [12, 18],
+    zoom: 1.25,
+    renderWorldCopies: true,
+    attributionControl: true,
+    dragRotate: false,
+    pitchWithRotate: false,
   });
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-left");
+  map.touchZoomRotate.disableRotation();
   map.on("error", () => { document.getElementById("map-fallback").hidden = false; });
   map.on("load", () => {
-    map.addSource("readers", { type: "geojson", data: readerFeatures([]) });
-    map.addLayer({
-      id: "readers",
-      type: "circle",
-      source: "readers",
-      paint: {
-        "circle-radius": ["interpolate", ["linear"], ["get", "pv"], 1, 5, 20000, 22],
-        "circle-color": "#0f766e",
-        "circle-opacity": 0.86,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
-      },
-    });
-    map.on("click", "readers", (event) => {
-      const feature = event.features && event.features[0];
-      if (!feature) return;
-      const props = feature.properties || {};
-      if (popup) popup.remove();
-      popup = new maplibregl.Popup({ closeButton: false, offset: 12 })
-        .setLngLat(feature.geometry.coordinates)
-        .setHTML(`<strong>${esc(countryName(props.country))}</strong><br>${esc(props.city)}<br>${Number(props.pv || 0).toLocaleString()} ${esc(t("views"))}`)
-        .addTo(map);
-    });
     mapReady = true;
-    if (latest) renderMap(latest);
+    frameWorld();
+    flushQueue();
   });
 }
 
-function renderMap(data) {
-  if (!mapReady) return;
-  const countries = Object.entries(data.countries || {}).map(([code, info]) => ({
-    code, country: code, lat: info.lat, lng: info.lng, pv: info.pv, uv: info.uv, city: info.lastCity,
-  }));
-  const collection = readerFeatures(countries);
-  map.getSource("readers").setData(collection);
-  if (!fitted && collection.features.length) {
-    const bounds = new maplibregl.LngLatBounds();
-    collection.features.forEach((feature) => bounds.extend(feature.geometry.coordinates));
-    map.fitBounds(bounds, { padding: 64, maxZoom: 3.2, duration: 0 });
-    fitted = true;
-  }
-}
-
-function renderCountries(data) {
-  const entries = Object.entries(data.countries || {}).sort((a, b) => (b[1].uv || 0) - (a[1].uv || 0)).slice(0, 8);
-  const max = entries.reduce((sum, item) => sum + (item[1].uv || 0), 0) || 1;
-  const root = document.getElementById("countries");
-  if (!entries.length) {
-    root.innerHTML = `<p class="empty">${esc(t("empty"))}</p>`;
-    return;
-  }
-  root.innerHTML = entries.map(([code, info]) => {
-    const pct = Math.max(4, Math.round(((info.uv || 0) / max) * 100));
-    return `<div class="row"><div><b>${esc(countryName(code))}</b><div class="bar"><i style="width:${pct}%"></i></div></div><span>${Number(info.uv || 0).toLocaleString(lang === "zh" ? "zh-CN" : "en")} ${esc(t("user"))}</span></div>`;
-  }).join("");
-}
-
-function renderPages(data) {
-  const rows = data.pages || [];
-  const root = document.getElementById("pages");
-  if (!rows.length) {
-    root.innerHTML = `<p class="empty">${esc(t("empty"))}</p>`;
-    return;
-  }
-  const max = rows[0].pv || 1;
-  root.innerHTML = `<table><thead><tr><th>${esc(t("page"))}</th><th class="num">${esc(t("view"))}</th></tr></thead><tbody>${
-    rows.slice(0, 8).map((row) => `<tr><td><div class="path">${esc(row.path)}</div><div class="bar"><i style="width:${Math.max(4, Math.round((row.pv / max) * 100))}%"></i></div></td><td class="num">${Number(row.pv || 0).toLocaleString(lang === "zh" ? "zh-CN" : "en")}</td></tr>`).join("")
-  }</tbody></table>`;
-}
-
-function renderStream(data) {
-  const logs = data.recentLogs || [];
-  const root = document.getElementById("stream");
-  if (!logs.length) {
-    root.innerHTML = `<p class="empty">${esc(t("empty"))}</p>`;
-    return;
-  }
-  root.innerHTML = `<table><thead><tr><th>${esc(t("time"))}</th><th>${esc(t("place"))}</th><th>${esc(t("page"))}</th><th>${esc(t("source"))}</th><th>${esc(t("kind"))}</th></tr></thead><tbody>${
-    logs.slice(0, 10).map((row) => {
-      const when = new Date(row.ts).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour12: false });
-      const kind = row.isBot ? "bot" : row.isNewUV ? "newUser" : "returning";
-      const fresh = !shown[row.ts] ? "fresh" : "";
-      return `<tr class="${fresh}"><td>${esc(when)}</td><td>${esc([countryName(row.country), row.city].filter(Boolean).join(" · ") || t("unknown"))}</td><td class="path">${esc(row.path)}</td><td>${esc(hostOf(row.referrer))}</td><td><span class="tag ${row.isBot ? "bot" : ""}">${esc(t(kind))}</span></td></tr>`;
-    }).join("")
-  }</tbody></table>`;
-  logs.slice(0, 10).forEach((row) => { shown[row.ts] = true; });
-}
-
-function render(data) {
+function render(data, fromPoll) {
   latest = data;
-  series = data.series || [];
   const banner = document.getElementById("banner");
   if (!data.configured) {
     banner.hidden = false;
@@ -271,52 +343,58 @@ function render(data) {
     banner.hidden = true;
   }
   const ready = data.configured && data.ok !== false;
-  const cards = [
-    ["active", data.onlineCount, "activeHint"],
-    ["users", data.totalUV, "usersHint"],
-    ["views", data.totalPV, "viewsHint"],
-    ["bots", data.filteredBots, "botsHint"],
-  ];
-  const root = document.getElementById("metrics");
-  if (!root.children.length) {
-    root.innerHTML = cards.map(([key, , hint]) => `<article class="metric"><span>${esc(t(key))}</span><strong data-metric="${key}">—</strong><em>${esc(t(hint))}</em></article>`).join("");
-  }
-  cards.forEach(([key, value, hint]) => {
-    const card = root.querySelector(`[data-metric="${key}"]`);
-    card.previousElementSibling.textContent = t(key);
-    card.nextElementSibling.textContent = t(hint);
-    if (ready) tween(card, value || 0);
-    else card.textContent = "—";
-  });
-  renderCountries(data);
-  renderPages(data);
-  renderStream(data);
-  renderMap(data);
-  const stamp = new Date().toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour12: false });
-  document.getElementById("updated").textContent = `${t("updated")} ${stamp}`;
-  if (reduced) drawBackground();
+  const rows = sliceSeries(data.series || []);
+  const sumUV = rows.reduce((sum, row) => sum + (Number(row.uv) || 0), 0);
+  const sumPV = rows.reduce((sum, row) => sum + (Number(row.pv) || 0), 0);
+  const users = range === "all" ? Number(data.totalUV || sumUV) : sumUV;
+  const visits = range === "all" ? Number(data.totalPV || sumPV) : sumPV;
+  setMetric("metric-uv", users, ready, fromPoll);
+  setMetric("metric-pv", visits, ready, fromPoll);
+  const note = range === "all" ? t("since") : t("window");
+  document.getElementById("users-note").textContent = note;
+  document.getElementById("visits-note").textContent = note;
+  sparks.uv = rows.map((row) => Number(row.uv) || 0);
+  sparks.pv = rows.map((row) => Number(row.pv) || 0);
+  renderLists(data);
+  ingest(data.recentLogs || []);
+  if (reduced) paintCharts();
+}
+
+function stamp() {
+  document.getElementById("updated").textContent = `${t("updated")} ${new Date().toLocaleTimeString(locale(), { hour12: false })}`;
 }
 
 async function refresh() {
   try {
     const response = await fetch("/api/stats", { cache: "no-store" });
-    render(await response.json());
+    render(await response.json(), true);
   } catch (e) {
     render({ configured: true, ok: false, error: t("failed"), countries: {}, pages: [], recentLogs: [], series: [] });
   }
 }
 
+document.getElementById("ranges").addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  range = button.dataset.range;
+  renderRanges();
+  if (latest) render(latest);
+});
 document.getElementById("lang").addEventListener("click", () => {
   lang = lang === "zh" ? "en" : "zh";
   applyCopy();
   if (latest) render(latest);
 });
-window.addEventListener("resize", () => { resizeCanvas(); if (map) map.resize(); });
-
+window.addEventListener("resize", () => {
+  if (map) {
+    map.resize();
+    frameWorld();
+  }
+});
 applyCopy();
-resizeCanvas();
-drawBackground();
-if (reduced) drawBackground();
+stamp();
+setInterval(stamp, 1000);
 initMap();
+paintCharts();
 refresh();
-setInterval(refresh, 5000);
+setInterval(refresh, 3000);
