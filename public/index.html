@@ -12,59 +12,43 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="nav">
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div class="page">
+    <header class="top">
       <a class="brand" href="https://globalinfectiousdisease.com/">
-        <img src="https://globalinfectiousdisease.com/logo-mark-128.png" alt="" width="32" height="32">
+        <img src="https://globalinfectiousdisease.com/logo-mark-128.png" alt="" width="36" height="36">
         <span><strong>GIDS</strong><small>Analytics</small></span>
       </a>
-      <nav id="nav" aria-label="Reports"></nav>
-      <a class="site-link" href="https://globalinfectiousdisease.com/" data-i18n="site"></a>
-    </aside>
-    <div class="workspace">
-      <header class="top">
-        <div>
-          <p class="crumb">GIDS · globalinfectiousdisease.com</p>
-          <h1 id="title"></h1>
-        </div>
-        <div class="tools">
-          <span id="updated"></span>
-          <button type="button" id="lang"></button>
-        </div>
-      </header>
-      <div id="banner" class="banner" hidden></div>
-      <section class="metrics" id="metrics"></section>
-      <section class="split" id="panel-geo">
-        <div class="card map-card">
-          <div class="card-head">
-            <h2 data-i18n="map"></h2>
-            <span data-i18n="mapHint"></span>
-          </div>
-          <div class="map-frame">
-            <div id="map"></div>
-            <p id="map-fallback" class="map-fallback" hidden data-i18n="mapFail"></p>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2 data-i18n="countries"></h2></div>
-          <div id="countries"></div>
-        </div>
-      </section>
-      <section class="split lower" id="panel-detail">
-        <div class="card" id="panel-pages">
-          <div class="card-head"><h2 data-i18n="pages"></h2></div>
-          <div class="table-wrap" id="pages"></div>
-        </div>
-        <div class="card" id="panel-stream">
-          <div class="card-head">
-            <h2 data-i18n="stream"></h2>
-            <span data-i18n="streamHint"></span>
-          </div>
-          <div id="bars" class="bars" aria-hidden="true"></div>
-          <div class="table-wrap" id="stream"></div>
-        </div>
-      </section>
-    </div>
+      <div class="live"><i></i><span data-i18n="live"></span></div>
+      <div class="tools">
+        <span id="updated"></span>
+        <button type="button" id="lang"></button>
+      </div>
+    </header>
+    <div id="banner" class="banner" hidden></div>
+    <section class="metrics" id="metrics"></section>
+    <p class="note" id="note"></p>
+    <section class="card map-card">
+      <div class="card-head"><h2 data-i18n="map"></h2><span data-i18n="mapHint"></span></div>
+      <div class="map-frame">
+        <div id="map"></div>
+        <p id="map-fallback" class="map-fallback" hidden data-i18n="mapFail"></p>
+      </div>
+    </section>
+    <section class="split">
+      <div class="card">
+        <div class="card-head"><h2 data-i18n="countries"></h2></div>
+        <div id="countries"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2 data-i18n="pages"></h2></div>
+        <div id="pages"></div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2 data-i18n="stream"></h2><span data-i18n="streamHint"></span></div>
+      <div id="stream"></div>
+    </section>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
   <script src="/app.js"></script>

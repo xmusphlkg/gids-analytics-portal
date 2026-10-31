@@ -1,63 +1,50 @@
-const VIEWS = ["overview", "realtime", "pages", "locations"];
 const COPY = {
   zh: {
-    overview: "概览", realtime: "实时", pages: "网页", locations: "地理位置", site: "返回主站",
-    overviewTitle: "概览", realtimeTitle: "实时", pagesTitle: "网页和屏幕", locationsTitle: "地理位置",
-    active: "活跃用户", activeHint: "过去 5 分钟", users: "用户", usersHint: "累计独立读者",
-    views: "浏览量", viewsHint: "累计页面浏览", bots: "自动访问", botsHint: "已识别的脚本与爬虫",
-    map: "用户所在位置", mapHint: "在线地图", mapFail: "在线底图没有加载。地区列表仍然可用。",
-    countries: "国家/地区", pages: "网页", stream: "最近事件", streamHint: "最近保存的访问",
-    empty: "还没有主站访问。把 tracker.js 加到 globalinfectiousdisease.com 后，这里会显示真实读者。",
-    unbound: "D1 数据库还没有绑到这个 Pages 项目，报告无法写入。",
-    failed: "报告暂时读不出来。", updated: "更新于", you: "当前网络出口",
-    time: "时间", place: "地区", page: "网页", source: "来源", kind: "类型",
-    user: "用户", view: "浏览量", newUser: "新用户", returning: "回访", bot: "自动访问", unknown: "未知", direct: "直接访问",
+    live: "实时", active: "活跃读者", activeHint: "过去 5 分钟",
+    users: "访问", usersHint: "含 Web Analytics 历史", views: "浏览量", viewsHint: "页面打开次数",
+    bots: "自动访问", botsHint: "已识别的脚本与爬虫",
+    map: "读者位置", mapHint: "在线地图", mapFail: "在线底图没有加载。地区列表仍然可用。",
+    countries: "国家/地区", pages: "网页", stream: "实时事件", streamHint: "信标写入后出现",
+    empty: "主站信标生效后，新的访问会显示在这里。",
+    unbound: "D1 还没有绑到这个项目。", failed: "报告暂时读不出来。",
+    note: "折线是 Cloudflare Web Analytics 的每日浏览量。数字会在新访问到达时跳动。",
+    updated: "更新于", time: "时间", place: "地区", page: "网页", source: "来源", kind: "类型",
+    user: "访问", view: "浏览量", newUser: "新访问", returning: "再次访问", bot: "自动访问",
+    unknown: "未知", direct: "直接访问",
   },
   en: {
-    overview: "Overview", realtime: "Realtime", pages: "Pages", locations: "Locations", site: "Back to GIDS",
-    overviewTitle: "Overview", realtimeTitle: "Realtime", pagesTitle: "Pages and screens", locationsTitle: "Locations",
-    active: "Active users", activeHint: "Last 5 minutes", users: "Users", usersHint: "All-time readers",
-    views: "Views", viewsHint: "All-time page views", bots: "Automated", botsHint: "Scripts and crawlers",
-    map: "Users by location", mapHint: "Live map", mapFail: "The base map did not load. The location list is still available.",
-    countries: "Countries", pages: "Pages", stream: "Recent events", streamHint: "Latest stored hits",
-    empty: "No public-site traffic yet. Add tracker.js to globalinfectiousdisease.com to record readers.",
-    unbound: "D1 is not bound to this Pages project, so the report cannot store hits.",
-    failed: "The report could not be loaded.", updated: "Updated", you: "This network exit",
-    time: "Time", place: "Location", page: "Page", source: "Source", kind: "Type",
-    user: "Users", view: "Views", newUser: "New", returning: "Returning", bot: "Automated", unknown: "Unknown", direct: "Direct",
+    live: "Live", active: "Active readers", activeHint: "Last 5 minutes",
+    users: "Visits", usersHint: "Includes Web Analytics history", views: "Views", viewsHint: "Page opens",
+    bots: "Automated", botsHint: "Scripts and crawlers",
+    map: "Reader locations", mapHint: "Live map", mapFail: "The base map did not load. The location list is still available.",
+    countries: "Countries", pages: "Pages", stream: "Live events", streamHint: "Appears as beacons arrive",
+    empty: "New visits show up here after the public site beacon is active.",
+    unbound: "D1 is not bound to this project.", failed: "The report could not be loaded.",
+    note: "The line is daily page views from Cloudflare Web Analytics. Figures tick as new visits arrive.",
+    updated: "Updated", time: "Time", place: "Location", page: "Page", source: "Source", kind: "Type",
+    user: "Visits", view: "Views", newUser: "New", returning: "Returning", bot: "Automated",
+    unknown: "Unknown", direct: "Direct",
   },
-};
-
-const ICONS = {
-  overview: '<svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>',
-  realtime: '<svg viewBox="0 0 24 24"><path d="M4 12h4l2-5 4 10 2-5h4"/></svg>',
-  pages: '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v6h6"/></svg>',
-  locations: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M2 12h20M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg>',
 };
 
 let lang = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
-let view = (location.hash || "#overview").slice(1);
-if (!VIEWS.includes(view)) view = "overview";
 let names = regionNames();
 let map;
 let mapReady = false;
 let fitted = false;
 let latest = null;
 let popup;
+let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const shown = {};
 
 function t(key) { return COPY[lang][key]; }
 function regionNames() { return new Intl.DisplayNames([lang === "zh" ? "zh-CN" : "en"], { type: "region" }); }
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
-function num(value) { return Number(value || 0).toLocaleString(lang === "zh" ? "zh-CN" : "en"); }
 function countryName(code) {
   if (!code || code === "XX" || code === "ZZ" || code === "T1") return t("unknown");
   try { return names.of(code) || code; } catch (e) { return code; }
-}
-function place(row) {
-  const where = [countryName(row.country), row.city].filter(Boolean).join(" · ");
-  return where || t("unknown");
 }
 function hostOf(referrer) {
   if (!referrer || referrer === "Direct") return t("direct");
@@ -66,34 +53,103 @@ function hostOf(referrer) {
 
 function applyCopy() {
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
-  document.title = "GIDS Analytics";
   names = regionNames();
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
-  document.getElementById("title").textContent = t(view + "Title");
   document.getElementById("lang").textContent = lang === "zh" ? "EN" : "中文";
-  document.getElementById("nav").innerHTML = VIEWS.map((id) => (
-    `<button type="button" data-view="${id}" ${id === view ? 'aria-current="page"' : ""}>${ICONS[id]}<span>${esc(t(id))}</span></button>`
-  )).join("");
-  document.body.dataset.view = view;
+  document.getElementById("note").textContent = t("note");
 }
 
-function setView(next) {
-  view = next;
-  history.replaceState(null, "", "#" + next);
-  applyCopy();
-  if (latest) render(latest);
-  if (map && (view === "overview" || view === "realtime" || view === "locations")) {
-    setTimeout(() => map.resize(), 40);
+function tween(el, next) {
+  const target = Number(next || 0);
+  const from = Number(el.dataset.value || 0);
+  el.dataset.value = String(target);
+  if (reduced || from === target) {
+    el.textContent = target.toLocaleString(lang === "zh" ? "zh-CN" : "en");
+    return;
   }
+  el.parentElement.classList.add("tick");
+  const start = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - start) / 650);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (target - from) * eased).toLocaleString(lang === "zh" ? "zh-CN" : "en");
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
-function readerFeatures(nodes) {
+const canvas = document.getElementById("bg");
+const ctx = canvas.getContext("2d");
+let series = [];
+let travel = 0;
+
+function resizeCanvas() {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.floor(window.innerWidth * ratio);
+  canvas.height = Math.floor(window.innerHeight * ratio);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+
+function linePoints() {
+  const values = series.length ? series.map((row) => row.pv || 0) : [0, 0];
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const max = Math.max(...values, 1);
+  const left = 8;
+  const right = w - 8;
+  const top = 96;
+  const bottom = Math.min(360, h * 0.48);
+  return values.map((value, index) => {
+    const x = left + (values.length === 1 ? 0.5 : index / (values.length - 1)) * (right - left);
+    const y = bottom - (value / max) * (bottom - top);
+    return [x, y];
+  });
+}
+
+function drawBackground() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  ctx.clearRect(0, 0, w, h);
+  const points = linePoints();
+  if (points.length < 2) return;
+  const gradient = ctx.createLinearGradient(0, points[0][1], 0, h * 0.78);
+  gradient.addColorStop(0, "rgba(15, 118, 110, 0.28)");
+  gradient.addColorStop(1, "rgba(15, 118, 110, 0)");
+  ctx.beginPath();
+  points.forEach(([x, y], index) => index ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+  ctx.lineTo(points[points.length - 1][0], h * 0.78);
+  ctx.lineTo(points[0][0], h * 0.78);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.beginPath();
+  points.forEach(([x, y], index) => index ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+  ctx.strokeStyle = "rgba(15, 118, 110, 0.9)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  if (reduced) return;
+  travel = (travel + 0.0016) % 1;
+  const cursor = travel * (points.length - 1);
+  const i = Math.floor(cursor);
+  const f = cursor - i;
+  const a = points[i];
+  const b = points[Math.min(points.length - 1, i + 1)];
+  const x = a[0] + (b[0] - a[0]) * f;
+  const y = a[1] + (b[1] - a[1]) * f;
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "#0f766e";
+  ctx.fill();
+  requestAnimationFrame(drawBackground);
+}
+
+function readerFeatures(rows) {
   return {
     type: "FeatureCollection",
-    features: (nodes || []).filter((node) => Number.isFinite(node.lat) && Number.isFinite(node.lng)).map((node) => ({
+    features: (rows || []).filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng)).map((row) => ({
       type: "Feature",
-      geometry: { type: "Point", coordinates: [node.lng, node.lat] },
-      properties: { country: node.country, city: node.city || "", pv: node.pv || 0 },
+      geometry: { type: "Point", coordinates: [row.lng, row.lat] },
+      properties: { country: row.country || row.code, pv: row.pv || row.uv || 0, city: row.city || row.lastCity || "" },
     })),
   };
 }
@@ -107,8 +163,8 @@ function initMap() {
     container: "map",
     style: "https://tiles.openfreemap.org/styles/positron",
     center: [10, 20],
-    zoom: 1.4,
-    attributionControl: true,
+    zoom: 1.3,
+    renderWorldCopies: false,
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
   map.on("error", () => { document.getElementById("map-fallback").hidden = false; });
@@ -119,9 +175,9 @@ function initMap() {
       type: "circle",
       source: "readers",
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["get", "pv"], 1, 7, 40, 18],
+        "circle-radius": ["interpolate", ["linear"], ["get", "pv"], 1, 5, 20000, 22],
         "circle-color": "#0f766e",
-        "circle-opacity": 0.9,
+        "circle-opacity": 0.86,
         "circle-stroke-width": 2,
         "circle-stroke-color": "#ffffff",
       },
@@ -133,11 +189,9 @@ function initMap() {
       if (popup) popup.remove();
       popup = new maplibregl.Popup({ closeButton: false, offset: 12 })
         .setLngLat(feature.geometry.coordinates)
-        .setHTML(`<strong>${esc(countryName(props.country))}</strong><br>${esc(props.city)}<br>${num(props.pv)} ${esc(t("views"))}`)
+        .setHTML(`<strong>${esc(countryName(props.country))}</strong><br>${esc(props.city)}<br>${Number(props.pv || 0).toLocaleString()} ${esc(t("views"))}`)
         .addTo(map);
     });
-    map.on("mouseenter", "readers", () => { map.getCanvas().style.cursor = "pointer"; });
-    map.on("mouseleave", "readers", () => { map.getCanvas().style.cursor = ""; });
     mapReady = true;
     if (latest) renderMap(latest);
   });
@@ -145,12 +199,15 @@ function initMap() {
 
 function renderMap(data) {
   if (!mapReady) return;
-  const collection = readerFeatures(data.cityNodes);
+  const countries = Object.entries(data.countries || {}).map(([code, info]) => ({
+    code, country: code, lat: info.lat, lng: info.lng, pv: info.pv, uv: info.uv, city: info.lastCity,
+  }));
+  const collection = readerFeatures(countries);
   map.getSource("readers").setData(collection);
   if (!fitted && collection.features.length) {
     const bounds = new maplibregl.LngLatBounds();
     collection.features.forEach((feature) => bounds.extend(feature.geometry.coordinates));
-    map.fitBounds(bounds, { padding: 72, maxZoom: 4, duration: 0 });
+    map.fitBounds(bounds, { padding: 64, maxZoom: 3.2, duration: 0 });
     fitted = true;
   }
 }
@@ -164,8 +221,8 @@ function renderCountries(data) {
     return;
   }
   root.innerHTML = entries.map(([code, info]) => {
-    const pct = Math.max(2, Math.round(((info.uv || 0) / max) * 100));
-    return `<div class="row"><div><b>${esc(countryName(code))}</b><div class="bar"><i style="width:${pct}%"></i></div></div><span>${num(info.uv)} ${esc(t("user"))}</span></div>`;
+    const pct = Math.max(4, Math.round(((info.uv || 0) / max) * 100));
+    return `<div class="row"><div><b>${esc(countryName(code))}</b><div class="bar"><i style="width:${pct}%"></i></div></div><span>${Number(info.uv || 0).toLocaleString(lang === "zh" ? "zh-CN" : "en")} ${esc(t("user"))}</span></div>`;
   }).join("");
 }
 
@@ -178,37 +235,31 @@ function renderPages(data) {
   }
   const max = rows[0].pv || 1;
   root.innerHTML = `<table><thead><tr><th>${esc(t("page"))}</th><th class="num">${esc(t("view"))}</th></tr></thead><tbody>${
-    rows.map((row) => `<tr><td><div>${esc(row.title || row.path)}</div><div class="path">${esc(row.path)}</div><div class="bar"><i style="width:${Math.max(2, Math.round((row.pv / max) * 100))}%"></i></div></td><td class="num">${num(row.pv)}</td></tr>`).join("")
+    rows.slice(0, 8).map((row) => `<tr><td><div class="path">${esc(row.path)}</div><div class="bar"><i style="width:${Math.max(4, Math.round((row.pv / max) * 100))}%"></i></div></td><td class="num">${Number(row.pv || 0).toLocaleString(lang === "zh" ? "zh-CN" : "en")}</td></tr>`).join("")
   }</tbody></table>`;
 }
 
 function renderStream(data) {
   const logs = data.recentLogs || [];
-  const humans = logs.filter((row) => !row.isBot);
-  const bins = Array(18).fill(0);
-  const now = Date.now();
-  for (const row of humans) {
-    const age = Math.floor((now - row.ts) / 60000);
-    if (age >= 0 && age < bins.length) bins[bins.length - 1 - age] += 1;
-  }
-  const peak = Math.max(1, ...bins);
-  document.getElementById("bars").innerHTML = bins.map((count) => `<span style="height:${Math.max(4, Math.round((count / peak) * 56))}px"></span>`).join("");
   const root = document.getElementById("stream");
   if (!logs.length) {
     root.innerHTML = `<p class="empty">${esc(t("empty"))}</p>`;
     return;
   }
   root.innerHTML = `<table><thead><tr><th>${esc(t("time"))}</th><th>${esc(t("place"))}</th><th>${esc(t("page"))}</th><th>${esc(t("source"))}</th><th>${esc(t("kind"))}</th></tr></thead><tbody>${
-    logs.slice(0, 12).map((row) => {
+    logs.slice(0, 10).map((row) => {
       const when = new Date(row.ts).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour12: false });
       const kind = row.isBot ? "bot" : row.isNewUV ? "newUser" : "returning";
-      return `<tr><td>${esc(when)}</td><td>${esc(place(row))}${row.colo ? `<div class="path">${esc(row.colo)}</div>` : ""}</td><td class="path">${esc(row.path)}</td><td>${esc(hostOf(row.referrer))}</td><td><span class="tag ${row.isBot ? "bot" : ""}">${esc(t(kind))}</span></td></tr>`;
+      const fresh = !shown[row.ts] ? "fresh" : "";
+      return `<tr class="${fresh}"><td>${esc(when)}</td><td>${esc([countryName(row.country), row.city].filter(Boolean).join(" · ") || t("unknown"))}</td><td class="path">${esc(row.path)}</td><td>${esc(hostOf(row.referrer))}</td><td><span class="tag ${row.isBot ? "bot" : ""}">${esc(t(kind))}</span></td></tr>`;
     }).join("")
   }</tbody></table>`;
+  logs.slice(0, 10).forEach((row) => { shown[row.ts] = true; });
 }
 
 function render(data) {
   latest = data;
+  series = data.series || [];
   const banner = document.getElementById("banner");
   if (!data.configured) {
     banner.hidden = false;
@@ -219,44 +270,53 @@ function render(data) {
   } else {
     banner.hidden = true;
   }
+  const ready = data.configured && data.ok !== false;
   const cards = [
     ["active", data.onlineCount, "activeHint"],
     ["users", data.totalUV, "usersHint"],
     ["views", data.totalPV, "viewsHint"],
     ["bots", data.filteredBots, "botsHint"],
   ];
-  document.getElementById("metrics").innerHTML = cards.map(([key, value, hint], index) => (
-    `<article class="metric ${index === 0 ? "active" : ""}"><span>${esc(t(key))}</span><strong>${data.configured && data.ok !== false ? num(value) : "—"}</strong><em>${esc(t(hint))}</em></article>`
-  )).join("");
+  const root = document.getElementById("metrics");
+  if (!root.children.length) {
+    root.innerHTML = cards.map(([key, , hint]) => `<article class="metric"><span>${esc(t(key))}</span><strong data-metric="${key}">—</strong><em>${esc(t(hint))}</em></article>`).join("");
+  }
+  cards.forEach(([key, value, hint]) => {
+    const card = root.querySelector(`[data-metric="${key}"]`);
+    card.previousElementSibling.textContent = t(key);
+    card.nextElementSibling.textContent = t(hint);
+    if (ready) tween(card, value || 0);
+    else card.textContent = "—";
+  });
   renderCountries(data);
   renderPages(data);
   renderStream(data);
   renderMap(data);
   const stamp = new Date().toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour12: false });
   document.getElementById("updated").textContent = `${t("updated")} ${stamp}`;
+  if (reduced) drawBackground();
 }
 
 async function refresh() {
   try {
     const response = await fetch("/api/stats", { cache: "no-store" });
-    const data = await response.json();
-    render(data);
+    render(await response.json());
   } catch (e) {
-    render({ configured: true, ok: false, error: t("failed"), countries: {}, pages: [], recentLogs: [], cityNodes: [] });
+    render({ configured: true, ok: false, error: t("failed"), countries: {}, pages: [], recentLogs: [], series: [] });
   }
 }
 
-document.getElementById("nav").addEventListener("click", (event) => {
-  const button = event.target.closest("button");
-  if (button) setView(button.dataset.view);
-});
 document.getElementById("lang").addEventListener("click", () => {
   lang = lang === "zh" ? "en" : "zh";
   applyCopy();
   if (latest) render(latest);
 });
+window.addEventListener("resize", () => { resizeCanvas(); if (map) map.resize(); });
 
 applyCopy();
+resizeCanvas();
+drawBackground();
+if (reduced) drawBackground();
 initMap();
 refresh();
-setInterval(refresh, 10000);
+setInterval(refresh, 5000);

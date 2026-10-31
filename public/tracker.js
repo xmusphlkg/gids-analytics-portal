@@ -1,5 +1,7 @@
 (function () {
   try {
+    if (window.__gidTelemetry) return;
+    window.__gidTelemetry = 1;
     var scriptEl = document.currentScript;
     var endpoint = (scriptEl && scriptEl.getAttribute("data-endpoint")) || (window.location.origin + "/api/track");
     var pageKey = "gid_last_track_" + window.location.pathname;

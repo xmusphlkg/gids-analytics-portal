@@ -5,8 +5,8 @@
   var base = (scriptEl && scriptEl.getAttribute("data-api")) || "https://stats.globalinfectiousdisease.com";
   var zh = (document.documentElement.lang || "").toLowerCase().indexOf("zh") === 0;
   var labels = zh
-    ? ["过去 5 分钟", "用户", "浏览量", "自动访问"]
-    : ["Last 5 min", "Users", "Views", "Automated"];
+    ? ["过去 5 分钟", "访问", "浏览量", "自动访问"]
+    : ["Last 5 min", "Visits", "Views", "Automated"];
 
   container.innerHTML = ''
     + '<div style="font-family:IBM Plex Sans,Segoe UI,sans-serif;background:#fff;border:1px solid #e1e5ea;border-radius:12px;padding:16px 18px;color:#1b2430;max-width:720px;">'
@@ -20,15 +20,19 @@
     }).join("")
     + "</div></div>";
 
-  fetch(base + "/api/stats")
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      var live = d && d.configured && d.ok;
-      var values = live ? [d.onlineCount || 0, d.totalUV || 0, d.totalPV || 0, d.filteredBots || 0] : ["—", "—", "—", "—"];
-      values.forEach(function (value, i) {
-        var el = document.getElementById("gid-b-" + i);
-        if (el) el.textContent = typeof value === "number" ? value.toLocaleString() : value;
-      });
-    })
-    .catch(function () {});
+  function paint() {
+    fetch(base + "/api/stats")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var live = d && d.configured && d.ok;
+        var values = live ? [d.onlineCount || 0, d.totalUV || 0, d.totalPV || 0, d.filteredBots || 0] : ["—", "—", "—", "—"];
+        values.forEach(function (value, i) {
+          var el = document.getElementById("gid-b-" + i);
+          if (el) el.textContent = typeof value === "number" ? value.toLocaleString() : value;
+        });
+      })
+      .catch(function () {});
+  }
+  paint();
+  setInterval(paint, 20000);
 })();

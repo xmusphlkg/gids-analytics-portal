@@ -40,6 +40,12 @@ async function record(context, payload, isPixel) {
 
   await ensureSchema(env.GID_DB);
   const db = env.GID_DB;
+  const dupe = await db.prepare(`SELECT id FROM access_logs WHERE visitor_hash = ? AND path = ? AND ts > ? LIMIT 1`).bind(visitorHash, path, now - 15000).first();
+  if (dupe) {
+    if (isPixel) return new Response(PIXEL, { status: 200, headers: { ...headers, "Content-Type": "image/gif" } });
+    return json({ ok: true, engine: "d1", deduped: true }, headers);
+  }
+  const day = new Date(now).toISOString().slice(0, 10);
 
   if (isBot) {
     await db.batch([
@@ -61,6 +67,7 @@ async function record(context, payload, isPixel) {
         geo.country, isNew, geo.city, geo.lat, geo.lng, isNew
       ),
       db.prepare(`INSERT INTO page_stats (path, title, pv) VALUES (?, ?, 1) ON CONFLICT(path) DO UPDATE SET pv = page_stats.pv + 1, title = excluded.title`).bind(path, title),
+      db.prepare(`INSERT INTO daily_stats (day, pv, uv) VALUES (?, 1, ?) ON CONFLICT(day) DO UPDATE SET pv = daily_stats.pv + 1, uv = daily_stats.uv + ?`).bind(day, isNew, isNew),
       db.prepare(`INSERT INTO access_logs (ts, visitor_hash, country, city, region, colo, asn, lat, lng, path, title, referrer, is_new_uv, is_bot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`).bind(
         now, visitorHash, geo.country, geo.city, geo.region, geo.colo, geo.asn, geo.lat, geo.lng, path, title, referrer, isNew
       ),

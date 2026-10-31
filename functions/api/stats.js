@@ -37,10 +37,11 @@ export async function onRequestGet(context) {
     const since = Date.now() - 5 * 60 * 1000;
     const metrics = await db.prepare(`SELECT total_pv, total_uv, filtered_bots FROM global_metrics WHERE id = 1`).first();
     const online = await db.prepare(`SELECT COUNT(*) AS cnt FROM unique_visitors WHERE last_seen >= ?`).bind(since).first();
-    const countriesRes = await db.prepare(`SELECT country, pv, uv, last_city, lat, lng FROM country_stats ORDER BY pv DESC LIMIT 30`).all();
+    const countriesRes = await db.prepare(`SELECT country, pv, uv, last_city, lat, lng FROM country_stats ORDER BY pv DESC LIMIT 80`).all();
     const citiesRes = await db.prepare(`SELECT country, city, lat, lng, pv, last_ts FROM city_nodes ORDER BY pv DESC LIMIT 60`).all();
     const pagesRes = await db.prepare(`SELECT path, title, pv FROM page_stats ORDER BY pv DESC LIMIT 25`).all();
     const logsRes = await db.prepare(`SELECT ts, country, city, region, colo, asn, lat, lng, path, title, referrer, is_new_uv, is_bot FROM access_logs ORDER BY ts DESC LIMIT 40`).all();
+    const seriesRes = await db.prepare(`SELECT day, pv, uv FROM daily_stats ORDER BY day ASC`).all();
 
     const countries = {};
     for (const row of countriesRes.results || []) {
@@ -71,6 +72,7 @@ export async function onRequestGet(context) {
         lastTs: row.last_ts,
       })),
       pages: (pagesRes.results || []).map((row) => ({ path: row.path, title: row.title, pv: row.pv })),
+      series: (seriesRes.results || []).map((row) => ({ day: row.day, pv: row.pv, uv: row.uv })),
       recentLogs: (logsRes.results || []).map((row) => ({
         ts: row.ts,
         country: row.country,

@@ -61,5 +61,11 @@ CREATE TABLE IF NOT EXISTS access_logs (
   is_bot INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS daily_stats (
+  day TEXT PRIMARY KEY,
+  pv INTEGER NOT NULL DEFAULT 0,
+  uv INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON access_logs(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_visitors_last_seen ON unique_visitors(last_seen DESC);
