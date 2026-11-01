@@ -273,8 +273,8 @@ function drawSpark(canvas, values) {
   ctx.clearRect(0, 0, w, h);
   const series = values.length ? values : [0, 0];
   const max = Math.max(...series, 1);
-  const top = h * 0.5;
-  const bottom = h - 8;
+  const top = Math.round(h * 0.58);
+  const bottom = Math.max(top + 12, h - 3);
   const pts = series.map((value, index) => {
     const x = series.length === 1 ? w / 2 : (index / (series.length - 1)) * w;
     const y = bottom - (value / max) * (bottom - top);
@@ -626,11 +626,11 @@ async function loadCountries() {
   }
   drawSheets();
 }
-function openSheets() {
+function openSheet(which) {
   document.getElementById("sheets").hidden = false;
-  document.getElementById("sheet-uv").hidden = false;
-  document.getElementById("sheet-pv").hidden = false;
-  loadCountries();
+  document.getElementById("sheet-uv").hidden = which !== "uv";
+  document.getElementById("sheet-pv").hidden = which !== "pv";
+  requestAnimationFrame(() => loadCountries());
 }
 function closeSheet(which) {
   document.getElementById(which === "uv" ? "sheet-uv" : "sheet-pv").hidden = true;
@@ -682,8 +682,8 @@ document.getElementById("cal-next").addEventListener("click", () => {
 });
 document.getElementById("range-cancel").addEventListener("click", closePop);
 document.getElementById("range-apply").addEventListener("click", () => commitRange({ ...draft }));
-document.getElementById("open-metrics").addEventListener("click", openSheets);
-document.getElementById("open-metrics-pv").addEventListener("click", openSheets);
+document.getElementById("open-metrics").addEventListener("click", () => openSheet("uv"));
+document.getElementById("open-metrics-pv").addEventListener("click", () => openSheet("pv"));
 document.getElementById("sheets").addEventListener("click", (event) => {
   const button = event.target.closest("[data-close]");
   if (button) closeSheet(button.dataset.close);
